@@ -1,10 +1,14 @@
 
-# masss_lagg function is to gerate the plots for the lag vs mass
-# ts as data frame contains ts$pm1 and ts$lags 1,2,3
+df <- ts
+xx <- myplot(ts,overlap = T)
 
-myplot <-  function(ts,nm,level=0.99,overlap=T){
+png("plot.png",res = 600,width = 12,units = "in",height = 9)
+print(xx)
+dev.off()
+
+myplot <-  function(data_frame,level=0.99,overlap=T){
   
-  df1 <- reshape2::melt(ts, id = "pm1")
+  df1 <- reshape2::melt(ts,id = "pm1")
   
   model1 <- lm(df1$value[df1$variable=="lag1"] ~ poly(df1$pm1[df1$variable=="lag1"],3))
   
@@ -25,7 +29,6 @@ myplot <-  function(ts,nm,level=0.99,overlap=T){
   df1$pi[df1$variable=="lag2"] <- pi2
   df1$pi[df1$variable=="lag3"] <- pi3
   
-  #to genrate the single plot as overlap
   plot_overlap <-   
     ggplot(df1,aes(pm1,value,color=variable))+
     geom_point(aes(pm1,value,color = variable),alpha=0.70,size=3)+
@@ -33,23 +36,20 @@ myplot <-  function(ts,nm,level=0.99,overlap=T){
     theme_bw()+xlab("Mass") + ylab("Lag")+guides(color=guide_legend(title = "Lag"))+
     theme(legend.position = "bottom")
 
-  #to generate sperate lags for each sample in serate window
   plot_stratify <- 
     ggplot(df1,aes(pm1,value,color=variable))+
     geom_point(aes(pm1,value,color = variable))+
     geom_line(aes(pm1,pi,color = variable))+
     theme_bw()+xlab("Mass") + ylab("Lag")+guides(color=guide_legend(title = "Lag"))+
     facet_grid(~variable)+
-    theme(legend.position = "bottom")+
-    ggtitle(nm)+ theme(plot.title = element_text(hjust = 0.5))
-
+    theme(legend.position = "bottom")
   
   if(overlap==T){
     return(plot_overlap)
   }else{
       return(plot_stratify)
     }
-
+  
 }
 
 

@@ -1,0 +1,151 @@
+
+#Load sequences using `read.table`: 
+
+```{r}
+#fasta <- read.table("deer_collagen_20170915.fasta", stringsAsFactors = F)
+fasta_mam <- load.mcs("sheep")
+
+```
+
+This gives us a simple table, the even rows of which are the sequences (in this particular application)
+
+
+##setup the path for samples 
+```{r}
+file_path <- "C:/Users/GopaiahTalari/Desktop/25032018/Parchment_data/"
+replicates <- c("_1","_2","_3")
+```
+
+
+##Loading red deer samples
+
+The same process applies to deer - we just need to list the deer file bits like this:
+
+```{r}
+x <- list.files(file_path)
+y <- as.data.frame(x) 
+z <- rev(gregexpr("_", y$x)[[2]])[2]
+y$name <- substr(y$x,1,(z+1))
+sample_lots<- unique(y$name)
+```
+
+##making the list of samples
+
+```{r warning=FALSE, include=FALSE}
+sample_data<-list()
+for(ii in 1:length(sample_lots)){
+  froot <- sprintf("%s%s",file_path,sample_lots[ii])
+  sample_data[[ii]] <- load.sample(froot=froot,name=sprintf("%s",sample_lots[ii]),replicates, fext = ".txt")
+
+  }
+```
+# run mass_lag function (mass_lag)
+# mass_lag function used for calculation of lag with the help of ms_align function from bacollite
+# ts dataframe contains mass and lag values
+
+```{r}
+library(ggplot2)
+
+#pdf(file="Robust_fit.pdf",w=12,h=8)
+ 
+for(i in 1:1){
+  sample_list <- sample_data[[i]]
+  ts <- data.frame()
+  ts <- mass_lag(fasta_mam,sample_data[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm <-sample_data[[i]][["name"]]
+  masss_lagg <- myplot_robust(ts,nm,overlap = F)
+  
+}
+#dev.off()
+print(masss_lagg)
+
+```
+
+```{r}
+
+
+
+write.csv(ts,"lags.csv")
+```
+
+```{r}
+lag11<- ts[ts$lag1 < 0.5,]
+boxplot(lag11)
+```
+
+```{r}
+library(ggplot2)
+
+for(i in 1: 1) {
+  sample_list <- sample_data[[i]]
+  ts <- data.frame()
+  ts <- mass_lag(fasta_mam,sample_data[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm <-sample_data[[i]][["name"]]
+  masss_lagg <- myplot1(ts,nm, overlap = F)
+ 
+}
+ print(masss_lagg)
+
+```
+
+# view the data structure of ts
+```{r}
+require(DT, quietly = T)
+datatable(ts)
+```
+
+##making the ts datafrme contains column mass as pm1 and lags are lag1, lag2, lag3
+
+```{r}
+#change the name of mass column as pm1 in ts data frame
+names(ts)[1] <- c("pm1")
+#Sort the masss data by the order in pm1
+ts <- ts[ order(ts$pm1), ]
+ts <- ts[abs(ts$lag1) < 0.5,]
+ts <- ts[abs(ts$lag2) < 0.5,]
+ts <- ts[abs(ts$lag3) < 0.5,]
+# view ts data frame
+require(DT, quietly = T)
+datatable(ts)
+```
+# run masss_lagg function
+# masss_lagg function is used to gerate the plots for the lag vs mass 
+# ggplot2 used to generate the 2 types of plots
+
+```{r}
+#required ggplot for ploting
+library(ggplot2)
+
+# To save the plot as png for high quality view
+png("mas_lag.png", res = 600,width = 12,units = "in",height = 9)
+masss_lagg <- myplot(ts,overlap = T)
+print(masss_lagg)
+dev.off()
+print(masss_lagg)
+```
+
+
+```{r}
+# To save the plot as png for high quality view
+
+png("mas_lag2.png", res = 600,width = 12,units = "in",height = 9)
+masss_lagg2 <- myplot(ts,overlap = F)
+print(masss_lagg2)
+dev.off()
+print(masss_lagg2)
+```
+
+
+

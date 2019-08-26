@@ -1,0 +1,401 @@
+---
+title: "Handling FASTA sequences"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+
+#Load sequences using `read.table`: 
+
+
+```{r}
+fasta <- read.table("../deer_collagen_20170915.fasta", stringsAsFactors = F)
+```
+
+This gives us a simple table, the even rows of which are the sequences (in this particular application)
+
+
+#Generating peptide sets
+
+To construct the predicted peptides, you just call the function `parse.seq` and pass in the sequence data (even rows of the `fasta` object from above): 
+
+```{r, echo=TRUE, message=FALSE}
+#source("parse_seq.R")
+require(bacollite, quietly = T) 
+
+pep_elk <- parse.seq(fasta[2,])
+pep_elk <- pep_elk[order(pep_elk$mass1),]
+
+pep_deer <- parse.seq(fasta[4,])
+pep_deer <- pep_deer[order(pep_deer$mass1),]
+
+
+
+pep_elk_chymo <- parse.seq(fasta[2,],cuts="Y|F|W")
+pep_elk_chymo <- pep_elk_chymo[order(pep_elk_chymo$mass1),]
+
+pep_deer_chymo <- parse.seq(fasta[4,],cuts="Y|F|W")
+pep_deer_chymo <- pep_deer_chymo[order(pep_deer_chymo$mass1),]
+
+```
+
+Note that to predict the peptides that come from treatment with chymotrypsin we've set the `cuts` variable to a regulare expression that lists the amino acids where chymotrypsin cuts. We'll look at the chymotrypsin peptides later on in this notebook.
+
+
+
+#Processing the trypsin peptides
+
+
+
+We can look at the elk peptides like this
+
+```{r}
+require(DT, quietly = T)
+datatable(pep_elk)
+
+```
+
+you can sort this table by mass (the default), or by any other variable by clicking the triangles next to the column name. Note `seqpos` means the position in the sequence of the start of the peptide. Note that elk only seems to show two peptides with chymotrypsin
+
+We can save these peptides to a csv file like this:
+
+```{r}
+write.csv(file="peptides_elk_trypsin.csv", pep_elk)
+```
+
+
+
+Here's and the deer: 
+
+```{r}
+datatable(pep_deer)
+```
+
+We can save these peptides to a csv file like this:
+
+```{r}
+write.csv(file="peptides_deer_trypsin.csv", pep_deer)
+```
+
+
+OK, we are now in a position to see which peptides match the spectra. 
+We need a variable to hold the path to the files for the spectra.
+We also need the fragment of each file path that refers to the replicate number:
+
+```{r}
+file_path <- "~/tmp/bioarch_kristine/spectra-trypsin/"
+replicates <- c("_1","_2","_3")
+```
+
+##Processing elk samples: 
+
+Now we need a list of the elk lots, which we will use to 'build' the file path for each replicate
+
+
+```{r}
+elk_lots <- c("P220a_elk",
+              "P220b_elk",
+              "P220c_elk",
+              "P220d_elk",
+              "P221a_elk",
+              "P221b_elk",
+              "P221c_elk",
+              "P221d_elk"
+)
+```
+
+
+We can generate the 'hits' between the peptides and the MALDI like this, with the output going to the file `elk.pdf`: 
+
+```{r}
+elk_hits<-list()
+elk_data<-list()
+pdf(file="elk.pdf",w=12,h=8)
+for(ii in 1:length(elk_lots)){
+  #message(sprintf("Opening %s%s%s.txt",file_path,elk_lots[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path,elk_lots[ii])
+  elk_data[[ii]] <- load.sample(froot=froot,name=sprintf("%s",elk_lots[ii]),replicates, fext = ".txt")
+  elk_hits[[ii]] <- ms_fit(pep_elk,elk_data[[ii]],doplot=T,force=F)
+}
+dev.off()
+```
+
+
+A per-spectrum graphical summary of the matches can be created and placed in the file `elk_peaks.pdf` like so: 
+
+
+
+```{r}
+pdf(file="elk_peaks.pdf",w=24,h=8)
+for(ii in 1:length(elk_lots)){
+  
+  data <- elk_data[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- elk_hits[[ii]]
+  bzzt <- cbind(bzzt,pep_elk)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+}
+dev.off()
+```
+
+
+##processing red deer samples
+
+The same process applies to deer - we just need to list the deer file bits like this:
+
+```{r}
+deer_lots <- c(
+    "X4787a_reddeer",
+    "X4787b_reddeer",
+    "X4787c_reddeer",
+    "X4787d_reddeer",
+    "X4997a_reddeer",
+    "X4997b_reddeer",
+    "X4997c_reddeer",
+    "X4997d_reddeer"
+  )
+```
+
+
+
+
+OK, now we can go through the data and see which peptides fit which peaks, putting the output in `deer.pdf`: 
+
+```{r}
+deer_hits<-list()
+deer_data<-list()
+pdf(file="deer.pdf",w=12,h=8)
+for(ii in 1:length(deer_lots)){
+  #message(sprintf("Opening %s%s%s.txt",file_path,deer_lots[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path,deer_lots[ii])
+  deer_data[[ii]] <- load.sample(froot=froot,name=sprintf("%s",deer_lots[ii]),replicates, fext = ".txt")
+  deer_hits[[ii]] <- ms_fit(pep_deer,deer_data[[ii]],doplot=T,force=F)
+}
+dev.off()
+```
+
+...and again make the per-spectrum summary file `deer_peaks.pdf`:
+
+```{r}
+pdf(file="deer_peaks.pdf",w=24,h=8)
+for(ii in 1:length(elk_lots)){
+  
+  data <- deer_data[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- deer_hits[[ii]]
+  bzzt <- cbind(bzzt,pep_deer)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+}
+dev.off()
+```
+
+##Cross-checking: elk spectra against deer sequence
+
+Because the elk sequence is incomplete, it makes sense to see if any deer peptides explain the elk peaks
+
+
+```{r}
+elks_deerp_hits<-list()
+pdf(file="elk_spec_vs_deer_peptides.pdf",w=12,h=8)
+for(ii in 1:length(elk_lots)){
+  elks_deerp_hits[[ii]] <- ms_fit(pep_deer,elk_data[[ii]],doplot=T,force=F)
+}
+dev.off()
+```
+...and again make the per-spectrum summary file `elk_spec_vs_deer_peptides_peaks.pdf`:
+
+```{r}
+pdf(file="elk_spec_vs_deer_peptides_peaks.pdf",w=24,h=8)
+for(ii in 1:length(elk_lots)){
+  
+  data <- elk_data[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- elks_deerp_hits[[ii]]
+  bzzt <- cbind(bzzt,pep_deer)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+}
+dev.off()
+```
+
+#Processing the chymotrypsin peptides
+
+Let's look at the peptides for these first. Here's elk cut with chymotrypsin, and exported to a csv:
+
+```{r}
+datatable(pep_elk_chymo)
+write.csv(file="peptides_elk_chymo.csv", pep_elk_chymo)
+```
+
+s and the deer: 
+
+```{r}
+datatable(pep_deer_chymo)
+write.csv(file="peptides_deer_chymo.csv", pep_deer_chymo)
+```
+
+##Processing elk samples: 
+
+
+Now we need a list of the elk lots, which we will use to 'build' the file path for each replicate
+
+
+```{r}
+elk_lots_chymo <- c("P220bc_elk",
+              "P221bc_elk"
+)
+```
+
+We need a variable to hold the path to the files.
+We also need the fragment of each file path that refers to the replicate number:
+
+```{r}
+file_path_chymo <- "~/tmp/bioarch_kristine/spectra-chymotrypsin/"
+```
+
+OK, now we can go through the data and see which peptides fit which peaks: 
+
+```{r}
+elk_hits_chymo<-list()
+elk_data_chymo<-list()
+pdf(file="elk_chymo.pdf",w=12,h=8)
+for(ii in 1:length(elk_lots_chymo)){
+  #message(sprintf("Opening %s%s%s.txt",file_path_chymo,elk_lots_chymo[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path_chymo,elk_lots_chymo[ii])
+  elk_data_chymo[[ii]] <- load.sample(froot=froot,name=sprintf("%s",elk_lots_chymo[ii]),replicates, fext = ".txt")
+  elk_hits_chymo[[ii]] <- ms_fit(pep_elk_chymo,elk_data_chymo[[ii]],doplot=T,force=F)
+}
+dev.off()
+```
+let's see what the elk per-spectra plots look like: 
+
+```{r}
+pdf(file="elk_peaks_chymo.pdf",w=24,h=8)
+for(ii in 1:length(elk_lots_chymo)){
+
+  data <- elk_data_chymo[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- elk_hits_chymo[[ii]]
+  bzzt <- cbind(bzzt,pep_elk_chymo)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+  
+}
+dev.off()
+```
+
+
+
+
+#Processing red deer samples
+
+
+
+
+
+```{r}
+deer_lots_chymo <- c(
+    "X4787ac_reddeer",
+    "X4997ac_reddeer"
+  )
+```
+
+
+
+
+OK, now we can go through the data and see which peptides fit which peaks: 
+
+```{r}
+deer_hits_chymo<-list()
+deer_data_chymo<-list()
+pdf(file="deer_chymo.pdf",w=12,h=8)
+for(ii in 1:length(deer_lots_chymo)){
+  #message(sprintf("Opening %s%s%s.txt",file_path_chymo,deer_lots_chymo[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path_chymo,deer_lots_chymo[ii])
+  deer_data_chymo[[ii]] <- load.sample(froot=froot,name=sprintf("%s",deer_lots_chymo[ii]),replicates, fext = ".txt")
+  deer_hits_chymo[[ii]] <- ms_fit(pep_deer_chymo,deer_data_chymo[[ii]],doplot=T,force=T)
+}
+dev.off()
+```
+let's see what the elk per-spectra plots look like: 
+
+```{r}
+pdf(file="deer_peaks_chymo.pdf",w=24,h=8)
+for(ii in 1:length(deer_lots_chymo)){
+
+  data <- deer_data_chymo[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- deer_hits_chymo[[ii]]
+  bzzt <- cbind(bzzt,pep_deer_chymo)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+  
+}
+dev.off()
+```
+
+
+
+
+
+#Appendix: Don't use bioconductor!
+
+*I'm keeping this section in so that I remember not to try it again!*
+
+We'll try reading Fasta files using bioconductor, although this may be a bit unweildy for our purposes. I'm following the example at [https://stackoverflow.com/questions/9328519/how-to-read-from-multiple-fasta-files-with-r]
+
+let's install this (this may take some time, but you only need to do this once): 
+
+```{r, eval=FALSE}
+source("http://bioconductor.org/biocLite.R")
+biocLite("ShortRead")
+
+```
+
+
+load the `bioconductor` library, and check the sequence:
+
+```{r, eval=FALSE}
+require("ShortRead",quietly = T)
+fasta <- readFasta("../",".fasta")
+fasta[1]@sread
+```
+
+Hmm.. that sequence seems to be picking a subset of the letters in the sequence in the file. Ah well, we'll have to roll our own reader - hopefully not too tricky
+
+
+
+

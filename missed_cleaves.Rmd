@@ -1,0 +1,125 @@
+---
+title: "Missed Cleaves"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+
+We're going to adapt a function in the `bacollite` package so that we can estimate a number of missed cleaves. This notebook will show how to use it. 
+
+There is a function in `bacollite` called `parse.seq()` that will cleave at *every* trypsin - we'll adapt that, adding an option for generating peptides with a particular number of missed cleaves. 
+
+
+Whilst we debug this, we are going to have to reload it - so let's do that explicitly like this: 
+
+```{r}
+require(bacollite,quietly = T)
+source("~/git/bacollite/R/parse_seq.R")
+```
+
+We'll just use the first 127 nucleotides of cervus_elaphus to test initially:
+
+```{r}
+seq0 <- parse.seq("XQLSYGYDEKSTGISVPGPMGPSGPRGLPGPPGAPGPQGFQGPPGEPGEPGASGPMGPRGPPGPPGKNGDDGEAGKPGRPGERGPPGPQGARGLPGTAGLPGMKGHRGFSGLDGAKGDAGPAGPKG",verbose = T)
+seq0 <- seq0[seq0$nglut == 0 & seq0$nhyd == 0,]
+
+message("\nseq2:")
+
+seq2 <- parse.seq("XQLSYGYDEKSTGISVPGPMGPSGPRGLPGPPGAPGPQGFQGPPGEPGEPGASGPMGPRGPPGPPGKNGDDGEAGKPGRPGERGPPGPQGARGLPGTAGLPGMKGHRGFSGLDGAKGDAGPAGPKG",max.missed.cleaves = 2, verbose = T)
+seq2 <- seq2[seq2$nglut == 0 & seq2$nhyd == 0,]
+```
+
+All working except that the position of the *next* peptide start isn't being captured properly -- seq2 should capture the peptide starting at seqpos 27, but it misses it, possibly because the mass goes out of range for the first missed cleave? NO it's because the position has moved on - need to reset the position to start also - this could be messy!
+
+Found the problem - unlike in C you can't muck about with the variable in a for loop: 
+
+```{r}
+for(ii in 1:5){message(sprintf("%d",ii));if(ii==2)ii<-4;}
+```
+ 
+```{r}
+require(DT)
+datatable(seq0)
+```
+```{r}
+datatable(seq2)
+```
+
+ok, let's try this with a whole sequence
+
+
+
+```{r}
+fasta <- read.table("../deer_collagen_20170915.fasta", stringsAsFactors = F)
+
+pep_deer <- parse.seq(fasta[4,],max.missed.cleaves = 2)
+
+pdmc <- pep_deer[pep_deer$missed.cleaves > 0,]
+
+datatable(pdmc)
+```
+
+# Running missed cleaves 
+
+Once we have built peptides from missed cleave analysis, running them is exactly the same process as running fully cleaved peptides: 
+
+##processing red deer samples
+
+The same process applies to deer - we just need to list the deer file bits like this:
+
+```{r}
+file_path <- "~/tmp/bioarch_kristine/spectra-trypsin/"
+replicates <- c("_1","_2","_3")
+
+deer_lots <- c(
+    "X4787a_reddeer",
+    "X4787b_reddeer",
+    "X4787c_reddeer",
+    "X4787d_reddeer",
+    "X4997a_reddeer",
+    "X4997b_reddeer",
+    "X4997c_reddeer",
+    "X4997d_reddeer"
+  )
+```
+
+
+
+
+OK, now we can go through the data and see which peptides fit which peaks, putting the output in `deer.pdf`: 
+
+```{r}
+deer_hits<-list()
+deer_data<-list()
+pdf(file="deer.pdf",w=12,h=8)
+for(ii in 1:length(deer_lots)){
+  #message(sprintf("Opening %s%s%s.txt",file_path,deer_lots[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path,deer_lots[ii])
+  deer_data[[ii]] <- load.sample(froot=froot,name=sprintf("%s",deer_lots[ii]),replicates, fext = ".txt")
+  deer_hits[[ii]] <- ms_fit(pdmc,deer_data[[ii]],doplot=T,force=F)
+}
+dev.off()
+```
+
+...and again make the per-spectrum summary file `deer_peaks.pdf`:
+
+```{r}
+pdf(file="deer_peaks.pdf",w=24,h=8)
+for(ii in 1:length(deer_lots)){
+  
+  data <- deer_data[[ii]]
+  
+  plot (x=data$s1$mass, y = data$s1$intensity/max(data$s1$intensity),type="l",col="red")
+  lines(x=data$s2$mass, y = data$s2$intensity/max(data$s2$intensity), col = "green")
+  lines(x=data$s3$mass, y = data$s3$intensity/max(data$s3$intensity), col = "blue")
+  
+  bzzt <- deer_hits[[ii]]
+  bzzt <- cbind(bzzt,pdmc)
+  bzzt <- bzzt[bzzt$hit,]
+  message(sprintf("drawing %d hits",nrow(bzzt)))
+  points(x=bzzt$mass1,y=0.5*bzzt$mass1/bzzt$mass1,pch=20,cex=1.5,col="orange")
+  
+}
+dev.off()
+```

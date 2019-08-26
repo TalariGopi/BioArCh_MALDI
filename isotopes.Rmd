@@ -1,0 +1,104 @@
+---
+title: "Isotopes"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+
+In earlier versions of the `bacollite` package, we only calculated the isotope distributions for the unmodified peptides. Masses and distributions for various levels of hydroxylation and deamidation were estimated by shifting the mass of each isotope peak by +0.984015 per deamidation and +16 per hydroxylation. Whilst this is adequate for most purposes, there are two problems: firstly, the isotope distribution is less accurate because the change in the numbers of atoms inevitably changes the isotope distribution; secondly, it means that we can't put in other modifications or masses that use combinations of C H O N S that are not solely down to combinations of amino acids. 
+
+To illustrate the difference between a pepted-based and atom-count-based calculation, we'll work on a longish peptide that we've seen hydroxylations and deamidations in from the human collagen sequence. The full list of peptides is here (you can re-order the table by clicking on the column names):
+
+```{r, echo=TRUE}
+if(!exists("mcs")){
+  require(bacollite)
+  mcs <- load.mcs()
+}
+library(DT)
+datatable(mcs)
+```
+
+
+Looking through this, we can see that the sequence `GAPGPDGNNGAQGPPGPQGVQGGK` has 5 hydroxylations and 5 deamidations (that's the `nglut` column in the table above - I need to go through the package and rename that).
+
+We have two methods of calculating isotopes. The first, `ms_tpeaks` uses the simpler "shifting" method - calculating the isotope distribution for the raw peptide, and then shifting the mass by the required amount to estimate the mass at differnt levles of hydroxylation and deamidation. The second, the newly-written `ms_iso` calculates the number of atoms in the peptide, and then adds and subtracts as necessary to get the modification. These methods *should* produce identical results, but there are small differences. Let's illustrate this by calculating the masses for the different hydroxylation levels: 
+
+
+
+```{r}
+for(ii in 0:5){
+  mt = ms_tpeaks(seq,nhydroxylations=ii,ndeamidations=0)
+  mi = ms_iso(seq,nhydroxylations=ii,ndeamidations=0)
+  
+  if(ii==0){
+    mt_table <- c(ii,mt$mass,mt$prob)
+    mi_table <- c(ii,mi$mass,mi$prob)
+  }
+  else{
+    mt_table <- rbind(mt_table,c(ii,mt$mass,mt$prob))
+    mi_table <- rbind(mi_table,c(ii,mi$mass,mi$prob))
+  }
+}
+colnames(mt_table)<-c("Nhyd","mass1","mass2","mass3","mass4","mass5","prob1","prob2","prob3","prob4","prob5")
+colnames(mi_table)<-c("Nhyd","mass1","mass2","mass3","mass4","mass5","prob1","prob2","prob3","prob4","prob5")
+```
+
+The original calculations just added 16 to each mass to get a new level of hydroxylation, so each level is just a mass-shifted version of the former: 
+
+```{r, fig.width=14}
+datatable(signif(mt_table),rownames=F)
+```
+
+
+The new calculation is more precise - the masses shift by slightly less than 16 per hydroxylation, and the probabilities change subtly: 
+
+```{r, fig.width=14}
+datatable(signif(mi_table),rownames=F)
+```
+
+
+
+
+
+
+
+
+Let's plot some of these values, and see what the difference looks like - doing hydroxylations first: 
+
+```{r}
+for(ii in 0:5){
+  
+  mt = ms_tpeaks(seq,nhydroxylations=ii,ndeamidations=0)
+  mi = ms_iso(seq,nhydroxylations=ii,ndeamidations=0)
+  
+  if(ii==0){
+    plot(0,xlim=c(mt$mass[1]-0.5, mt$mass[1]+5.5+80))
+    segments(x0=mt$mass[1]-0.5,x1=mt$mass[1]+85.5,y0=0)
+  }
+    
+  segments(x0=mt$mass,y0=0,y1=mt$prob)  
+  points(x=mt$mass,y=mt$prob,bg="white",pch=21)
+  
+  segments(x0=mt$mass,y0=0,y1=-mi$prob,col="red")
+  points(x=mi$mass,y=-mi$prob,bg="white",col="red",pch=21)
+  
+  
+  
+  
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

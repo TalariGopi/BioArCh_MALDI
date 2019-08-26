@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(readr)
+standards <- read.table("standards.csv", sep = ",", header = T)
+standards <- as.data.frame(standards[,2:3])
+#standards <- standards[order(standards$mass),]
+require(DT, quietly = T)
+datatable(standards)
+
+#class(standards)
+```
+##setup the path for samples 
+```{r}
+file_path <- "C:/Users/GopaiahTalari/Desktop/25032018/csv/calibrants/"
+replicates <- c("_1","_2","_3","_4","_5","_6","_7","_8")
+```
+
+
+##Loading red deer samples
+
+The same process applies to deer - we just need to list the deer file bits like this:
+
+```{r}
+calibrant_samples <- c(
+    "20180219_MAFRI13_B",
+    "20180219_MAFRI13_E",
+    "20180219_MAFRI13_H",
+    "20180219_MAFRI13_K",
+    "20180219_MAFRI13_N"
+)
+```
+
+##making the list of samples
+
+```{r warning=FALSE, include=FALSE}
+calibrant_data<-list()
+for(ii in 1:length(calibrant_samples)){
+  froot <- sprintf("%s%s",file_path,calibrant_samples[ii])
+  calibrant_data[[ii]] <- load.sample1(froot=froot,name=sprintf("%s",calibrant_samples[ii]),replicates,fext = ".txt")
+}
+```
+
+
+# run mass_lag function (mass_lag)
+# mass_lag function used for calculation of lag with the help of ms_align function from bacollite
+# ts dataframe contains mass and lag values
+
+```{r}
+#calibrants_list <- calibrant_data[[1]]
+ts <- list()
+
+for (i in 1:length(calibrant_data)){
+ts[[i]] <- mass_lag(standards,calibrant_data[[i]])
+ts[[i]]$Label <- (calibrant_data[[i]]$name)
+}
+
+ts <- do.call(rbind,ts)
+write.csv(ts,"calibrant_lags.csv")
+```
+
+# view the data structure of ts
+```{r}
+p <- myplot(ts,overlap = F)
+
+png("Calibrants_lags_in_one_plot.png",res = 600,width = 12,units = "in",height = 9)
+print(p)
+dev.off()
+print(p)
+```
+```{r}
+p <- myplot(ts,overlap = T)
+
+png("Calibrants_lags.png",res = 600,width = 12,units = "in",height = 9)
+print(p)
+dev.off()
+print(p)
+```

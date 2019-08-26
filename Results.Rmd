@@ -1,0 +1,61 @@
+---
+title: "Present Results"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+```{r}
+#Setting up the job:
+#- load the `stringr` package for string manipulation
+require(stringr)
+```
+
+
+Here we go through the files and structures used in `Process.Rmd` and print the matches. This saves having to re-calculate them as it takes about 4 hours!
+
+Some observations:
+- the 'score' is the proportion of the ions explained by the peaks. This is generally a low number because we are only looking at 12 peaks out of the whole
+spectrum
+- generally, the higher the score, the more consistent the match across replicates
+- scores below ~0.01 should probably be considered to be noise
+- where scores are identical across many species, we are only getting good alignments for a subset of the peptides
+- There's lots of scope for increasing the efficiency of the code - I wanted to focus on getting reasonable results at this point. 
+
+- it would be reasonable to combine the replicate scores to come up with a 'final' classification for each sample. I've not done that here because I think it's useful
+to see how each individual spectrum is being classified at this point. 
+
+
+```{r}
+rr = 0
+rk <- c(1:10)
+for(ff in seq(1,length(samples),3)){
+  ii = ff + (rr %% 3)
+  if(ii< length(samples) && is.na(str_match(samples[ii],"Reference")) && ii != 251){
+    message(sprintf(" %s%s%s",
+                    str_pad(samples[ii+0],34),
+                    str_pad(samples[ii+1],33),
+                    str_pad(samples[ii+2],33)
+                    ))
+    message("------------------------------------------------------------------------------------------------------")
+    
+    message(sprintf("%02d %s %0.5f%s %0.5f%s %0.5f\n", rk,
+                      str_pad(cl[[ii+0]]$species[ranks],25),cl[[ii+0]]$ions[ranks],
+                      str_pad(cl[[ii+1]]$species[ranks],25),cl[[ii+1]]$ions[ranks],
+                      str_pad(cl[[ii+2]]$species[ranks],25),cl[[ii+2]]$ions[ranks]
+
+                    
+                    ))
+    
+    message("")
+    
+    
+    
+    
+  }
+  #increment rr when we hit the reference samples
+  if(ff == 139) rr = rr+ 1
+  
+}
+
+```

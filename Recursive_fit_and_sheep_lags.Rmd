@@ -1,0 +1,506 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Load sequences using `read.table`: 
+
+```{r}
+
+library(openxlsx)
+
+Data1_fasta_human<- load.human.markers()
+
+#write.csv(fasta_human, "list_of_Human_peptides.csv", quote = F)
+
+marker_sheep <- load.mcs("sheep")
+marker_sheep_in_hum1 <- fasta_human[fasta_human$seq %in% marker_sheep$seq,]
+marker_sheep_in_hum <- marker_sheep_in_hum1[,c(2,10)]
+#write.csv(file="sheep_markers_in_human.csv",shm,quote=F)
+
+sheep_marker_SF <- read.xlsx("sheep_markers_SF.xlsx")
+
+Both_sheep_markers <- rbind.data.frame(marker_sheep_in_hum ,sheep_marker_SF)
+Data2_Both_sheep_markers <- Both_sheep_markers[order(Both_sheep_markers$mass1),]
+
+
+```
+
+This gives us a simple table, the even rows of which are the sequences (in this particular application)
+
+
+##setup the path for samples 
+
+```{r}
+#sample_files_path
+
+file_path<- "C:/Users/GopaiahTalari/Desktop/25032018/drive-download-20180511T164510Z-001/CSV_20141028_SF_BZ06-16_HH15-36/"
+file_path2 <- "C:/Users/GopaiahTalari/Desktop/25032018/drive-download-20180511T164510Z-001/CSV_20141126_SF_BZ17-45_BZ89_IMI01-12rep/"
+file_path3 <- "C:/Users/GopaiahTalari/Desktop/25032018/drive-download-20180511T164510Z-001/CSV_20141127_SF_BZ46-77_RESPOT/"
+file_path4 <- "C:/Users/GopaiahTalari/Desktop/25032018/drive-download-20180511T164510Z-001/CSV_20141128_SF_BZ82-88_BBZ01-09_UMLB01-12/"
+
+
+```
+
+
+
+```{r}
+#making the list of the samples from the folder
+
+x <- list.files(file_path,pattern = ".txt")
+
+sd <- ifelse(grepl("BZ",x), paste(x), NA) 
+sd1 <- sd[!is.na(sd)]
+
+y <- as.data.frame(sd1)
+
+#y$name <- ifelse(rev(gregexpr("_", i)[[1]])[1],)
+df2 <- data.frame()
+for (i in sd1) {
+  
+  z1 <- rev(gregexpr("_", i)[[1]])[1]
+  name<- substr(i, 1, (z1))
+  num <-  substr(i, z1+1, (z1+3))
+  df3 <- data.frame(name,num)
+  df2 <- rbind(df2,df3)
+}
+
+sample_list <- df2$name
+```
+
+
+##making the list of samples
+
+```{r warning=FALSE, include=FALSE}
+library(openxlsx)
+
+path <- paste(file_path,"PLATEMAP.xlsx", sep = "")
+df <- read.xlsx(path,skipEmptyRows = T, colNames = FALSE)
+df1<- df[grepl("BZ", df$X5),]
+
+
+numb<- c()
+a <- 1
+for (i in 1:(length(df1$X5)/3)) {
+  numb <-append(numb,a)
+  a<- a+3
+}
+# aa <- c()
+  
+```
+
+#replicates_labelling
+```{r}
+replicates<- list()
+for(i in numb){
+  # print(i)
+  p <- df1$X4[i:(i+2)]
+  print(p)
+  replicates[[i]]<- p
+  
+  non_null_names <- which(!sapply(replicates, is.null))
+  replicates <- replicates[non_null_names]
+}
+
+```
+
+#sample list
+```{r}
+samples1_list<-list()
+
+for(ii in 1:length(replicates)){
+  #message(sprintf("Opening %s%s%s.txt",file_path,elk_lots[ii],replicates[1]))
+  froot <- sprintf("%s%s",file_path,sample_list[ii])
+  samples1_list[[ii]] <-load.sample(froot=froot,name=sprintf("%s",sample_list[ii]),replicates[[ii]], fext = ".txt")
+  
+}
+
+```
+
+# run mass_lag function (mass_lag)
+# mass_lag function used for calculation of lag with the help of ms_align function from      bacollite
+# ts dataframe contains mass and lag values
+# Generating the pdf file with R2 score
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/Try_with_guass/Before_outlier_fit_human_with_guass.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_guass_lag(Data1_fasta_human,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off() 
+
+```
+
+
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/Try_with_guass/Before_outlier_fit_human_without_guass.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_lag(Data1_fasta_human,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off() 
+```
+
+
+
+
+
+```{r}
+
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/Try_with_guass/Before_outlier_fit_Sarah_F_sheep_without_guass.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_lag_seq(sheep_marker_SF,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off()
+
+```
+
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/Try_with_guass/Before_outlier_fit_sheep_with_guass.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_lag_guass_seq(Data2_Both_sheep_markers,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+```
+
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/Try_with_guass/Both_human_sheep_guass.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_lag_guass_seq(Data2_Both_sheep_markers,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  
+  ts$id <- paste("SH")
+  
+  ts1 <- data.frame()
+  ts1 <- mass_guass_lag(Data1_fasta_human,samples1_list[[i]])
+  names(ts1)[1] <- c("pm1")
+  ts1 <- ts1[ order(ts1$pm1), ]
+  ts1 <- ts1[abs(ts1$lag1) < 0.5,]
+  ts1 <- ts1[abs(ts1$lag2) < 0.5,]
+  ts1 <- ts1[abs(ts1$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  ts1$id <- paste("HM")
+  
+  ts_both <- rbind.data.frame(ts,ts1)
+  mas_lag_before <- myplot_two(ts_both,nm,overlap = F)
+  print(mas_lag_before)
+  
+  #df1 <- reshape2::melt(ts_both, id.vars = c("pm1", "id"))
+}
+dev.off()
+
+```
+
+```{r}
+library(ggplot2)
+R2 <- 0.20
+
+pdf(file="After_Both_human_sheep.pdf",w=12,h=8)
+ #
+for(i in 1){
+  ts <- data.frame()
+  ts <- mass_lag_seq(Data1_fasta_human,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  ts1 <- ts
+  st <- list()
+  #a <-0
+  for (i in 1:length(ts1$pm1)){
+  #i<-1
+  
+  model1 <- lm(ts1$lag1 ~ poly(ts1$pm1,3))
+  model2 <- lm(ts1$lag2 ~ poly(ts1$pm1,3))
+  model3 <- lm(ts1$lag3 ~ poly(ts1$pm1,3))
+
+  #err1 <- summary(model1)$sigma
+  ts1$list_residual1 <- resid(model1)
+  ts1$list_residual2 <- resid(model2)
+  ts1$list_residual3 <- resid(model3)
+  #list_residual<- data.frame(list_residual1, "pm1"=ts1$pm1)
+  #ts1 <- cbind(ts1,list_residual)
+  #ts1$pm1<-NULL
+  ts1<- ts1[-which.max(ts1$list_residual1),]
+  ts1<- ts1[-which.min(ts1$list_residual1),]
+  
+  ts1<- ts1[-which.max(ts1$list_residual2),]
+  ts1<- ts1[-which.min(ts1$list_residual2),]
+  
+  ts1<- ts1[-which.max(ts1$list_residual3),]
+  ts1<- ts1[-which.min(ts1$list_residual3),]
+  
+  
+  st1 <- summary(model1)$r.squared
+  st <- append(st,st1)
+  
+  #i<-14
+  #a<-13
+  if (st[[i]] > R2 ){
+     break 
+  }#else{
+    #print(st)
+  #}
+  #a = 1
+  }
+  
+  #data_for_plot$id <- paste("SH")
+  # ####################################################################marker2
+  # ts2 <- data.frame()
+  # ts2 <- mass_lag(Data1_fasta_human,samples1_list[[i]])
+  # names(ts2)[1] <- c("pm1")
+  # ts2 <- ts2[ order(ts2$pm1), ]
+  # ts2 <- ts2[abs(ts2$lag1) < 0.5,]
+  # ts2 <- ts2[abs(ts2$lag2) < 0.5,]
+  # ts2 <- ts2[abs(ts2$lag3) < 0.5,]
+  # ts1 <- ts2
+  # st <- list()
+  # #a <-0
+  # for (i in 1:length(ts1$pm1)){
+  # #i<-1
+  # 
+  # model1 <- lm(ts1$lag1 ~ poly(ts1$pm1,3))
+  # model2 <- lm(ts1$lag2 ~ poly(ts1$pm1,3))
+  # model3 <- lm(ts1$lag3 ~ poly(ts1$pm1,3))
+  # 
+  # #err1 <- summary(model1)$sigma
+  # ts1$list_residual1 <- resid(model1)
+  # ts1$list_residual2 <- resid(model2)
+  # ts1$list_residual3 <- resid(model3)
+  # #list_residual<- data.frame(list_residual1, "pm1"=ts1$pm1)
+  # #ts1 <- cbind(ts1,list_residual)
+  # #ts1$pm1<-NULL
+  # ts1<- ts1[-which.max(ts1$list_residual1),]
+  # ts1<- ts1[-which.min(ts1$list_residual1),]
+  # 
+  # ts1<- ts1[-which.max(ts1$list_residual2),]
+  # ts1<- ts1[-which.min(ts1$list_residual2),]
+  # 
+  # ts1<- ts1[-which.max(ts1$list_residual3),]
+  # ts1<- ts1[-which.min(ts1$list_residual3),]
+  # 
+  # 
+  # st1 <- summary(model1)$r.squared
+  # st <- append(st,st1)
+  # 
+  # #i<-14
+  # #a<-13
+  # if (st[[i]] > R2 ){
+  #    break 
+  # }
+  # 
+  # }
+  # data_for_plot2<- ts1[,c(1:4)]
+  # 
+  # data_for_plot2$id <- paste("HM")
+  # #ts2$id <- paste("HM")
+  # 
+  # ts_both <- rbind.data.frame(data_for_plot,data_for_plot2)
+  # mas_lag_before <- myplot_two(ts_both,nm,overlap = F)
+  # print(mas_lag_before)
+  # 
+  # #df1 <- reshape2::melt(ts_both, id.vars = c("pm1", "id"))
+}
+dev.off()
+data_for_plot <- ts1[,c(1:4)]
+
+```
+
+
+
+```{r}
+#df1 <- reshape2::melt(ts, id = "pm1")
+
+  
+#model1 <- lm(df1$value[df1$variable=="lag1"] ~ poly(df1$pm1[df1$variable=="lag1"],3))
+
+R_sqare <- readline(prompt= "Enter required_R_sqare: ")
+# convert character into integer
+R2 <- as.numeric(R_sqare)
+R2 <- 0.20
+
+ts1 <- ts
+st <- list()
+#a <-0
+for (i in 1:length(ts1$pm1)){
+#i<-1
+  
+  model1 <- lm(ts1$lag1 ~ poly(ts1$pm1,3))
+  model2 <- lm(ts1$lag2 ~ poly(ts1$pm1,3))
+  model3 <- lm(ts1$lag3 ~ poly(ts1$pm1,3))
+
+  #err1 <- summary(model1)$sigma
+  ts1$list_residual1 <- resid(model1)
+  ts1$list_residual2 <- resid(model2)
+  ts1$list_residual3 <- resid(model3)
+  #list_residual<- data.frame(list_residual1, "pm1"=ts1$pm1)
+  #ts1 <- cbind(ts1,list_residual)
+  #ts1$pm1<-NULL
+  ts1<- ts1[-which.max(ts1$list_residual1),]
+  ts1<- ts1[-which.min(ts1$list_residual1),]
+  
+  ts1<- ts1[-which.max(ts1$list_residual2),]
+  ts1<- ts1[-which.min(ts1$list_residual2),]
+  
+  ts1<- ts1[-which.max(ts1$list_residual3),]
+  ts1<- ts1[-which.min(ts1$list_residual3),]
+  
+  
+  st1 <- summary(model1)$r.squared
+  st <- append(st,st1)
+  
+  #i<-14
+  #a<-13
+if (st[[i]] > R2 ){
+   break
+#}else{
+    print(st)
+  }
+ #a = 1
+    # if (i== 2){
+    #   break
+    # }
+}
+data_for_plot<- ts1[,c(1:4)]
+mas_lag_after <- myplot_lm(data_for_plot,nm,overlap = F)
+print( )
+```
+
+# view the data structure of ts
+
+```{r}
+png("before_vs_after_outliers.png",res = 600,width = 12,units = "in",height = 10 )
+gridExtra::grid.arrange(mas_lag_before,mas_lag_after, nrow=2, top = "Before and after removing outliers")
+#ggsave("before_vs_after_outliers.png",res = 600,width = 12,units = "in",height = 9)
+#dev.off()
+#print(before_after)
+```
+
+
+
+```{r}
+fit_x<- ts1[,c(1)]
+write.csv(fit_x, "list_of_best_fit_peptides.csv")
+
+
+```
+
+
+
+```{r}
+#change the name of mass column as pm1 in ts data frame
+names(ts)[1] <- c("pm1")
+#Sort the masss data by the order in pm1
+ts <- ts[ order(ts$pm1), ]
+t
+s <- ts[abs(ts$lag1) < 0.5,]
+ts <- ts[abs(ts$lag2) < 0.5,]
+ts <- ts[abs(ts$lag3) < 0.5,]
+# view ts data frame
+require(DT, quietly = T)
+datatable(ts)
+```
+
+# run masss_lagg function
+# masss_lagg function is used to gerate the plots for the lag vs mass 
+# ggplot2 used to generate the 2 types of plots
+
+
+```{r}
+#required ggplot for ploting
+library(ggplot2)
+
+# To save the plot as png for high quality view
+png("mas_lag.png", res = 600,width = 12,units = "in",height = 9)
+masss_lagg <- myplot(ts,overlap = T)
+print(masss_lagg)
+dev.off()
+
+print(masss_lagg)
+
+```
+
+
+
+```{r}
+# To save the plot as png for high quality view
+
+png("mas_lag2.png", res = 600,width = 12,units = "in",height = 9)
+masss_lagg2 <- myplot(ts,overlap = F)
+print(masss_lagg2)
+dev.off()
+
+print(masss_lagg2)
+
+```
+
+
+

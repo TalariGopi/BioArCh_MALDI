@@ -1,0 +1,239 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(openxlsx)
+
+Data1_fasta_human<- load.mcs()#load.human.markers()
+
+```
+
+```{r}
+file_path <- "C:/Users/GopaiahTalari/Desktop/tmp/20160803_Keri12/"
+replicates <- c("_A1","_A4","_A7")
+sample_list <- c("20160803_Keri12_0")
+```
+
+
+```{r}
+spectra_sample <-list()
+spectra_hits <-list()
+
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/GPM/human_hits_with_limit.pdf",w=12,h=8)
+
+for(ii in 1:length(sample_list)){
+ # message(sprintf("Opening %s%s%s.txt",file_path,sample_list[ii],replicates[]))
+  froot <- sprintf("%s%s",file_path,sample_list[ii])
+  spectra_sample[[ii]] <-load.sample(froot=froot,name=sprintf("%s",sample_list[ii]),replicates, fext = ".txt")
+  spectra_hits[[ii]] <- ms_fit_with_mass(Data1_fasta_human,spectra_sample[[ii]], force = F, gauss = 0.2, doplot = T, corlim = 0.30, laglim = 0.6)
+}
+dev.off()
+spectra_results_result <- as.data.frame(spectra_hits)
+spectra_results_result<- spectra_results_result[spectra_results_result$hit=="TRUE",]
+
+```
+
+
+
+```{r}
+library(openxlsx)
+
+GPM <- read.xlsx("C:/Users/GopaiahTalari/Desktop/25032018/GPM/Work_edit of GPM Coll1.xlsx")
+
+```
+
+```{r}
+moff <- 1
+GP_subms_1 <- data.frame()
+GP_mass_lag <- data.frame()
+
+
+for (i in 1:nrow(spectra_results_result)){
+#spectra_results_result <- spectra_results_result[spectra_results_result]
+  
+lbl <- min(spectra_results_result$mass[i]) - moff# + 
+ubl <- min(spectra_results_result$mass[i]) + moff# + 
+
+GP_subms <- data.frame()
+
+GP_subms <- GPM[GPM[, 5] <= ubl & GPM[, 5] >= lbl, ] #range
+GP_subms <- GP_subms[1,]
+GP_subms <- GP_subms[!is.na(GP_subms$mass),]
+GP_subms <- GP_subms[(GP_subms$Obs_GPMD >100),] #selecting the peptides based on number of observations in GPM
+GP_subms_1 <- rbind(GP_subms_1,GP_subms)
+
+GP_lag <- spectra_results_result$mass[i]- GP_subms$mass
+xx <- data.frame(GP_subms$mass, GP_lag)
+GP_mass_lag <- rbind(GP_mass_lag,xx)
+
+
+}
+
+```
+
+
+```{r}
+library(plotly)
+model1 <- lm(GP_mass_lag$GP_lag ~ poly(GP_mass_lag$GP_subms.mass,3))
+  
+#Generate predicted points from the model1
+pi1 <- predict(model1,data.frame(x=GP_mass_lag$GP_subms.mass,interval='confidence',level=0.99))
+GP_mass_lag$pi <- pi1
+p<- ggplot(GP_mass_lag,aes(GP_subms.mass,GP_lag,color=GP_lag))+
+    geom_point(aes(GP_subms.mass,GP_lag,color = GP_lag),alpha=0.70,size=3)+
+    geom_line(aes(GP_subms.mass,pi))+theme_bw()
+#print(p)
+ggplotly(p)
+ 
+```
+
+#working with _ lags vs mass plot without gpm
+
+
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/GPM/routine_lag.pdf",w=12,h=8)
+ 
+for(i in 1:length(spectra_sample)){
+  ts <- data.frame()
+  ts <- ms_fit_with_mass(Data1_fasta_human,spectra_sample[[1]], force = F, gauss = 0.2, doplot = F, corlim = 0.90, laglim = 0.6)
+
+  ts <- ts[ts$hit=="TRUE",c(1,3:5)]
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- spectra_sample[[1]][["name"]]
+  nm2 <-spectra_sample[[1]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off() 
+```
+
+
+```{r}
+library(ggplot2)
+
+moff <- 1
+
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/GPM/routine_lag.pdf",w=12,h=8)
+ 
+for(i in 1:length(spectra_sample)){
+  ts <- data.frame()
+  ts <- ms_fit_with_mass(Data1_fasta_human,spectra_sample[[1]], force = F, gauss = 0.2, doplot = F, corlim = 0.90, laglim = 0.6)
+
+  ts <- ts[ts$hit=="TRUE",c(1,3:5)]
+  names(ts)[1] <- c("pm1")
+  ts <- ts[ order(ts$pm1), ]  #Sort the masss data by the order in pm1
+  
+GP_subms_1 <- data.frame()
+GP_mass_lag <- data.frame()
+
+         for (i in 1:nrow(ts)){ 
+         
+          lbl <- min(ts$pm1[i]) - moff# + 
+          ubl <- min(ts$pm1[i]) + moff# + 
+          
+          GP_subms <- data.frame()
+          
+          GP_subms <- GPM[GPM[, 5] <= ubl & GPM[, 5] >= lbl, ] #range
+          GP_subms <- GP_subms[1,]
+          #GP_subms <- GP_subms[!is.na(GP_subms$mass),]
+          #GP_subms <- GP_subms[(GP_subms$Obs_GPMD >1000),] #selecting the peptides based on number of obs in GPM
+          GP_subms_1 <- rbind(GP_subms_1,GP_subms)
+        
+          #GP_lag <- ts$pm1[i]- GP_subms$mass
+          GP_lag <- ifelse(GP_subms$Obs_GPMD >1000,paste(ts$pm1[i]- GP_subms$mass),NA)
+          xx <- data.frame(GP_subms$mass, GP_lag)
+          GP_mass_lag <- rbind(GP_mass_lag,xx)
+        
+        }
+  
+  GP_mass_lag$GP_subms.mass <- ts$pm1
+  ts$GPM <- GP_mass_lag$GP_lag
+  ts <- ts[!is.na(ts$GPM),]
+  # ts <- ts[abs(ts$lag1) < 0.5,]
+  # ts <- ts[abs(ts$lag2) < 0.5,]
+  # ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- spectra_sample[[1]][["name"]]
+  nm2 <-spectra_sample[[1]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- Plot_lag_GP(ts1,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off() 
+
+```
+
+```{r}
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/GPM/Ms_allign_GPM.pdf",w=12,h=8)
+
+for (ii in 1:length(GP_subms_1$sequence)){
+
+
+GPM_cd1 <- ms_iso(GP_subms_1$sequence[i])
+
+  lbl <- min(cd1$mass) - GP_moff# + (theroretical_pep$nglut[i]*0.984015)+(theroretical_pep$nhyd[i]*16)
+  ubl <- max(cd1$mass) + GP_moff# + (theroretical_pep$nglut[i]*0.984015)+(theroretical_pep$nhyd[i]*16)
+
+  subms1 <- ms_subrange(spectra_sample[[1]]$s1,lbl,ubl)
+  subms2 <- ms_subrange(spectra_sample[[1]]$s2,lbl,ubl)
+  subms3 <- ms_subrange(spectra_sample[[1]]$s3,lbl,ubl)
+
+  cdshift <- GPM_cd1
+
+  myxlim = c(lbl,ubl)
+
+  align1 <- ms_align(cdshift,subms1,myxlim,gauss= 0.2,doplot=F, verbose=F)
+  # align2 <- ms_align(cdshift,subms2,myxlim,gauss= 0.2,doplot=F, verbose=F)
+  # align3 <- ms_align(cdshift,subms3,myxlim,gauss= 0.2,doplot=F, verbose=F)
+  # 
+}
+```
+
+
+```{r}
+xx <- ms_fit(Data1_fasta_human,spectra_sample, use_ms_iso = T, force = F, corlim = 0.50, gauss = 0.02)
+
+#ms_fit<-function(peptides,sample,doplot=T,force=F,vlevel=0,corlim=0.0,laglim=0.6,gauss=NA,ignore_warnings=F,use_ms_iso=T)
+```
+
+```{r}
+library(ggplot2)
+
+pdf(file="C:/Users/GopaiahTalari/Desktop/25032018/GPM/allign_WIth_GPM.pdf",w=12,h=8)
+ 
+for(i in 1:length(samples1_list)){
+  ts <- data.frame()
+  ts <- mass_guass_lag(Data1_fasta_human,samples1_list[[i]])
+  names(ts)[1] <- c("pm1")
+  #Sort the masss data by the order in pm1
+  ts <- ts[ order(ts$pm1), ]
+  ts <- ts[abs(ts$lag1) < 0.5,]
+  ts <- ts[abs(ts$lag2) < 0.5,]
+  ts <- ts[abs(ts$lag3) < 0.5,]
+  nm1 <- samples1_list[[i]][["name"]]
+  nm2 <-samples1_list[[i]][["spot"]]
+  nm <- paste(nm1,nm2,sep = "")
+  mas_lag_before <- myplot_lm(ts,nm,overlap = F)
+  print(mas_lag_before)
+}
+dev.off() 
+
+```
+
+remove(GP_mass_lag, GP_subms_1)

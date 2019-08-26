@@ -1,0 +1,23 @@
+---
+title: "missed cleaves"
+output: html_notebook
+---
+
+
+Assume we have run `notebook_chymo.Rmd` to get pep_elk - let's generate the table sorted by sequence position:
+
+```{r}
+mc_elk <- pep_elk[pep_elk$nhyd ==0 & pep_elk$nglut == 0,]
+mc_elk <- mc_elk[order(mc_elk$seqpos),]
+source("missedcleave.R")
+```
+
+
+```{r}
+for(ii in 1:(nrow(mc_elk)-1)){
+  message(sprintf("Missed cleave %d: %s%s",ii,mc_elk$seq[ii],mc_elk$seq[ii+1]))
+  
+  
+}
+
+```
