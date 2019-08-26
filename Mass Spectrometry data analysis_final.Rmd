@@ -1,0 +1,110 @@
+
+---
+title: "Mass spectracopic data analysis"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r}
+library(bacollite)
+source("ratios_functions.R")
+check_it_works()
+```
+
+Loading the data 
+
+```{r}
+frootC = "C:/Users/Gopi/Documents/R/win-library/3.4/bacollite/20160909_Keri13_0_"
+
+CN<-list()
+CI<-list()
+
+CN[[1]]<-load.sample(frootC,"C1",c("A2","A4","A6"))
+CN[[2]]<-load.sample(frootC,"C2",c("A1","A3","A5"))
+CI[[1]]<-load.sample(frootC,"C3",c("A7","A8","A9"))
+
+markers<-load.human.markers()
+```
+
+Running the top level analyis
+
+```{r, results="hide"}
+CNhits <- list()
+CIhits <- list()
+
+for(ii in 1:2){
+  CNhits[[ii]] <- bacollite::ms_fit(markers,CN[[ii]],doplot=F)
+  if(ii==1)  CIhits[[ii]] <- bacollite::ms_fit(markers,CI[[ii]],doplot=F)
+}
+
+```
+
+Comparing hydroxylation levels
+
+```{r}
+Cdata <- bc_site_ratios(markers,CNhits,CIhits,intitle="method C")
+plotrowsell(Cdata,"Method C","Norfolk","Italy")
+
+```
+
+
+```{r, message=FALSE}
+Cdata <- bc_site_ratios(markers,CNhits,CIhits,intitle="method C")
+```
+
+```{r}
+ic_sum <- vector(length=nrow(markers))
+ic_count <- vector(length=nrow(markers))
+ic_mean <- vector (length=nrow(markers))
+ic_mean[] <- NA
+
+CNivals <- matrix(nrow = nrow(markers), ncol = length(CNhits))
+CNivals[] <- NA
+CIivals <- matrix(nrow = nrow(markers), ncol = length(CIhits))
+CIivals[] <- NA 
+
+```
+
+```{r}
+for(mm in 1:nrow(markers)){
+  
+  for(ii in 1: length(CNhits)){
+    if(CNhits[[ii]]$hit[mm]){
+      CNivals[mm,ii] <- CNhits[[ii]]$ion1[mm] + CNhits[[ii]]$ion2[mm] + CNhits[[ii]]$ion3[mm] / 3
+      ic_sum[mm] = ic_sum[mm] + CNivals[mm,ii]
+      ic_count[mm] = ic_count[mm] + 1
+    }
+  }
+  
+  for(ii in 1: length(CIhits)){
+    if(CIhits[[ii]]$hit[mm]){
+      CIivals[mm,ii] <- CIhits[[ii]]$ion1[mm] + CIhits[[ii]]$ion2[mm] + CIhits[[ii]]$ion3[mm] / 3
+      ic_sum[mm] = ic_sum[mm] + CIivals[mm,ii]
+      ic_count[mm] = ic_count[mm] + 1
+    }
+  }
+
+  if(ic_count[mm]>0){
+    ic_mean[mm] <- ic_sum[mm]/ic_count[mm]
+  }
+   
+}
+```
+
+Having got the data, we can build the table that we need to study the hydroxylations: 
+
+```{r, results = 'asis'}
+names <- markers$seq
+pepwt <- data.frame(names,markers$nhyd,markers$mass1,ic_mean,ic_mean-CNivals,ic_mean-CIivals)
+pepwt <- pepwt[order(pepwt$ic_mean,decreasing=T),]
+colnames(pepwt) <- c("Peptide","NHyd","Mass","Mean","C1","C2","C3")
+
+#Present the table: 
+
+library(knitr)
+kable(pepwt, digits = 3,caption = "Peptide ion counts")
+```
+
+
+
