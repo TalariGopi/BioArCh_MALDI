@@ -1,6 +1,5 @@
 Installation
-see INSTALL.md in this directory
-
+required R package: bacollite 
 Getting help with R
 Sometimes getting help in R is confusing. Here's some things you can try:
 
